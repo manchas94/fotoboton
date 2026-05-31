@@ -271,9 +271,12 @@ body{font-family:system-ui,-apple-system,sans-serif;background:#1a1a2e;color:#ff
 
 <script>
 /* ===================== CONSTANTES ===================== */
-const DPI = 3.7795;
-const A4W = Math.round(210 * DPI);
-const A4H = Math.round(297 * DPI);
+const DPI = 3.7795;                      // 72 DPI para pantalla
+const PRINT_DPI = 11.811;                 // 300 DPI para exportar
+const A4W = Math.round(210 * DPI);        // canvas pantalla: 794px
+const A4H = Math.round(297 * DPI);        // canvas pantalla: 1123px
+const A4W_HI = Math.round(210 * PRINT_DPI); // canvas impresión: 2480px
+const A4H_HI = Math.round(297 * PRINT_DPI); // canvas impresión: 3508px
 const SIZE_CONFIG = {
   32:{cols:4,rows:6,n:24,mm:38},
   44:{cols:3,rows:5,n:15,mm:50},
@@ -604,17 +607,77 @@ function draw(){
   applyCanvasScale();
 }
 
+function makeHiResCanvas(){
+  /* Genera canvas a 300 DPI (2480x3508px) para imprimir con calidad */
+  const pc = document.createElement('canvas');
+  pc.width = A4W_HI; pc.height = A4H_HI;
+  const pctx = pc.getContext('2d');
+  pctx.imageSmoothingEnabled = true;
+  pctx.imageSmoothingQuality = 'high';
+  pctx.fillStyle = '#ffffff';
+  pctx.fillRect(0, 0, A4W_HI, A4H_HI);
+  const BTN_PX = Math.round(cfg.mm * PRINT_DPI);
+  const r = BTN_PX / 2;
+  const MX = Math.round(((210 - cfg.cols*cfg.mm) / (cfg.cols+1)) * PRINT_DPI);
+  const MY = Math.round(((297 - cfg.rows*cfg.mm) / (cfg.rows+1)) * PRINT_DPI);
+  for(let row=0; row<cfg.rows; row++){
+    for(let col=0; col<cfg.cols; col++){
+      const idx = row*cfg.cols+col;
+      if(idx >= slots.length) continue;
+      drawButtonHiRes(pctx, MX+col*(BTN_PX+MX)+r, MY+row*(BTN_PX+MY)+r, r, slots[idx]);
+    }
+  }
+  return pc;
+}
+
+function drawButtonHiRes(c, cx, cy, r, s){
+  /* Igual que drawButton pero usa PRINT_DPI para fuentes y sin guía de corte en color */
+  c.save();
+  c.imageSmoothingEnabled = true;
+  c.imageSmoothingQuality = 'high';
+  c.beginPath(); c.arc(cx, cy, r, 0, Math.PI*2); c.clip();
+  c.fillStyle = s.bgColor; c.fillRect(cx-r, cy-r, r*2, r*2);
+  if(s.image){
+    const zoom = s.imgZoom/100;
+    const base = Math.max(r*2/s.image.width, r*2/s.image.height);
+    const sw = s.image.width*base*zoom, sh = s.image.height*base*zoom;
+    c.drawImage(s.image, cx-sw/2+s.imgX*base*zoom, cy-sh/2+s.imgY*base*zoom, sw, sh);
+  }
+  const fs = s.fontSize * PRINT_DPI * 0.7;
+  c.font = '500 '+fs+'px sans-serif';
+  c.fillStyle = s.textColor; c.textAlign = 'center'; c.textBaseline = 'middle';
+  const pos = s.textPos, pad = r*0.13, lh = fs*1.3;
+  let tx = cx, ty = cy;
+  if(pos.includes('top')) ty = cy-r+pad+fs;
+  else if(pos.includes('bottom')) ty = cy+r-pad-fs;
+  if(pos.includes('left')){ tx=cx-r*0.2; c.textAlign='left'; }
+  else if(pos.includes('right')){ tx=cx+r*0.2; c.textAlign='right'; }
+  if(s.line1) c.fillText(s.line1, tx, s.line2 ? ty-lh/2 : ty);
+  if(s.line2){ c.font='400 '+(fs*0.82)+'px sans-serif'; c.fillText(s.line2, tx, ty+lh/2); }
+  c.restore();
+  if(s.borderW > 0){
+    c.beginPath(); c.arc(cx, cy, r-s.borderW/2, 0, Math.PI*2);
+    c.strokeStyle = s.borderColor; c.lineWidth = s.borderW * (PRINT_DPI/DPI); c.stroke();
+  }
+  /* Guía de corte punteada fina */
+  c.beginPath(); c.arc(cx, cy, r+4, 0, Math.PI*2);
+  c.strokeStyle = 'rgba(0,0,0,0.12)'; c.lineWidth = 2;
+  c.setLineDash([8,8]); c.stroke(); c.setLineDash([]);
+}
+
 function printSheet(){
-  const dataURL=canvas.toDataURL('image/png');
-  const win=window.open('','_blank');
+  const pc = makeHiResCanvas();
+  const dataURL = pc.toDataURL('image/png');
+  const win = window.open('','_blank');
   win.document.write('<!DOCTYPE html><html><head><title>Fotobotones '+curSize+'mm</title><style>@page{size:A4;margin:0}body{margin:0}img{width:210mm;height:297mm;display:block}</style></head><body><img src="'+dataURL+'" onload="window.print()"></body></html>');
   win.document.close();
 }
 
 function downloadPNG(){
-  const link=document.createElement('a');
-  link.download='fotobotones_'+curSize+'mm.png';
-  link.href=canvas.toDataURL('image/png');
+  const pc = makeHiResCanvas();
+  const link = document.createElement('a');
+  link.download = 'fotobotones_'+curSize+'mm_300dpi.png';
+  link.href = pc.toDataURL('image/png');
   link.click();
 }
 
