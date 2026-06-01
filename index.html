@@ -210,9 +210,20 @@ body{font-family:system-ui,-apple-system,sans-serif;background:#1a1a2e;color:#ff
               <input type="range" class="ctrl-range" id="imgZoom" min="50" max="300" value="100" step="1" oninput="updateImgTransform()">
               <span class="ctrl-val" id="imgZoomVal">100%</span>
             </div>
+            <div class="ctrl-row">
+              <span class="ctrl-lbl" style="font-size:10px">↔ X</span>
+              <input type="range" class="ctrl-range" id="imgScaleX" min="50" max="200" value="100" step="1" oninput="updateImgTransform()">
+              <span class="ctrl-val" id="imgScaleXVal">100%</span>
+            </div>
+            <div class="ctrl-row">
+              <span class="ctrl-lbl" style="font-size:10px">↕ Y</span>
+              <input type="range" class="ctrl-range" id="imgScaleY" min="50" max="200" value="100" step="1" oninput="updateImgTransform()">
+              <span class="ctrl-val" id="imgScaleYVal">100%</span>
+            </div>
+            <button class="remove-img-btn" onclick="resetImgTransform()" style="margin-bottom:4px"><i class="ti ti-refresh" aria-hidden="true"></i> Resetear escala</button>
             <button class="remove-img-btn" onclick="removeImage()"><i class="ti ti-x" aria-hidden="true"></i> Quitar imagen</button>
           </div>
-          <input type="file" id="fileInput" accept="image/*" style="display:none">
+          <input type="file" id="fileInput" accept="image/*,.jpg,.jpeg,.png,.gif,.webp,.bmp,.tiff,.tif,.svg,.avif,.heic,.heif" style="display:none">
         </div>
         <div class="ep-section">
           <div class="ep-sec-title">Texto</div>
@@ -297,7 +308,7 @@ const ctx = canvas.getContext('2d');
 
 function makeSlots(n){
   return Array.from({length:n},()=>({
-    image:null,imgX:0,imgY:0,imgZoom:100,
+    image:null,imgX:0,imgY:0,imgZoom:100,imgScaleX:100,imgScaleY:100,
     line1:'',line2:'',textPos:'top',
     bgColor:'#ffffff',textColor:'#111111',borderColor:'#cccccc',
     fontSize:11,borderW:1
@@ -374,6 +385,10 @@ function loadPanel(s){
     document.getElementById('imgEditor').style.display='flex';
     document.getElementById('imgZoom').value=s.imgZoom;
     document.getElementById('imgZoomVal').textContent=Math.round(s.imgZoom)+'%';
+    document.getElementById('imgScaleX').value=s.imgScaleX||100;
+    document.getElementById('imgScaleXVal').textContent=Math.round(s.imgScaleX||100)+'%';
+    document.getElementById('imgScaleY').value=s.imgScaleY||100;
+    document.getElementById('imgScaleYVal').textContent=Math.round(s.imgScaleY||100)+'%';
     drawThumb(s);
   } else {
     document.getElementById('imgDropArea').style.display='';
@@ -388,22 +403,20 @@ function drawThumb(s){
   const r=Math.min(W,H)/2-2, cx=W/2, cy=H/2;
   tctx.imageSmoothingEnabled=true; tctx.imageSmoothingQuality='high';
   tctx.clearRect(0,0,W,H);
-  /* Fondo oscuro fuera del círculo */
   tctx.fillStyle='#1a1a2e'; tctx.fillRect(0,0,W,H);
   tctx.save();
   tctx.beginPath(); tctx.arc(cx,cy,r,0,Math.PI*2); tctx.clip();
   tctx.fillStyle=s.bgColor; tctx.fillRect(0,0,W,H);
   if(s.image){
     const zoom=s.imgZoom/100;
+    const sx=(s.imgScaleX||100)/100, sy=(s.imgScaleY||100)/100;
     const base=Math.max(r*2/s.image.width,r*2/s.image.height);
-    const sw=s.image.width*base*zoom, sh=s.image.height*base*zoom;
-    tctx.drawImage(s.image,cx-sw/2+s.imgX*base*zoom,cy-sh/2+s.imgY*base*zoom,sw,sh);
+    const sw=s.image.width*base*zoom*sx, sh=s.image.height*base*zoom*sy;
+    tctx.drawImage(s.image,cx-sw/2+s.imgX*base*zoom*sx,cy-sh/2+s.imgY*base*zoom*sy,sw,sh);
   }
   tctx.restore();
-  /* Ring */
   tctx.beginPath(); tctx.arc(cx,cy,r,0,Math.PI*2);
   tctx.strokeStyle='rgba(127,119,221,0.7)'; tctx.lineWidth=2.5; tctx.stroke();
-  /* Guía punteada de corte */
   tctx.beginPath(); tctx.arc(cx,cy,r+4,0,Math.PI*2);
   tctx.strokeStyle='rgba(255,255,255,0.15)'; tctx.lineWidth=1;
   tctx.setLineDash([5,5]); tctx.stroke(); tctx.setLineDash([]);
@@ -413,6 +426,20 @@ function updateImgTransform(){
   const s=slots[selected];
   s.imgZoom=parseFloat(document.getElementById('imgZoom').value);
   document.getElementById('imgZoomVal').textContent=Math.round(s.imgZoom)+'%';
+  s.imgScaleX=parseFloat(document.getElementById('imgScaleX').value);
+  document.getElementById('imgScaleXVal').textContent=Math.round(s.imgScaleX)+'%';
+  s.imgScaleY=parseFloat(document.getElementById('imgScaleY').value);
+  document.getElementById('imgScaleYVal').textContent=Math.round(s.imgScaleY)+'%';
+  drawThumb(s); buildGrid(); draw();
+}
+
+function resetImgTransform(){
+  const s=slots[selected];
+  s.imgScaleX=100; s.imgScaleY=100;
+  document.getElementById('imgScaleX').value=100;
+  document.getElementById('imgScaleXVal').textContent='100%';
+  document.getElementById('imgScaleY').value=100;
+  document.getElementById('imgScaleYVal').textContent='100%';
   drawThumb(s); buildGrid(); draw();
 }
 
@@ -463,6 +490,10 @@ function nudge(dx,dy){
     s.imgZoom=Math.min(300,Math.max(50,s.imgZoom+delta));
     document.getElementById('imgZoom').value=s.imgZoom;
     document.getElementById('imgZoomVal').textContent=Math.round(s.imgZoom)+'%';
+    document.getElementById('imgScaleX').value=s.imgScaleX||100;
+    document.getElementById('imgScaleXVal').textContent=Math.round(s.imgScaleX||100)+'%';
+    document.getElementById('imgScaleY').value=s.imgScaleY||100;
+    document.getElementById('imgScaleYVal').textContent=Math.round(s.imgScaleY||100)+'%';
     showHint();
     drawThumb(s); buildGrid(); draw();
   }
@@ -521,9 +552,11 @@ document.getElementById('fileInput').addEventListener('change',e=>{
     const img=new Image();
     img.onload=()=>{
       const s=slots[selected];
-      s.image=img; s.imgX=0; s.imgY=0; s.imgZoom=100;
+      s.image=img; s.imgX=0; s.imgY=0; s.imgZoom=100; s.imgScaleX=100; s.imgScaleY=100;
       document.getElementById('imgZoom').value=100;
       document.getElementById('imgZoomVal').textContent='100%';
+      document.getElementById('imgScaleX').value=100; document.getElementById('imgScaleXVal').textContent='100%';
+      document.getElementById('imgScaleY').value=100; document.getElementById('imgScaleYVal').textContent='100%';
       document.getElementById('imgDropArea').style.display='none';
       document.getElementById('imgEditor').style.display='flex';
       drawThumb(s); buildGrid(); draw();
@@ -535,7 +568,7 @@ document.getElementById('fileInput').addEventListener('change',e=>{
 
 function removeImage(){
   const s=slots[selected];
-  s.image=null; s.imgX=0; s.imgY=0; s.imgZoom=100;
+  s.image=null; s.imgX=0; s.imgY=0; s.imgZoom=100; s.imgScaleX=100; s.imgScaleY=100;
   document.getElementById('imgDropArea').style.display='';
   document.getElementById('imgEditor').style.display='none';
   buildGrid(); draw();
@@ -565,9 +598,10 @@ function drawButton(c, cx, cy, r, s){
   c.fillStyle=s.bgColor; c.fillRect(cx-r,cy-r,r*2,r*2);
   if(s.image){
     const zoom=s.imgZoom/100;
+    const sx=(s.imgScaleX||100)/100, sy=(s.imgScaleY||100)/100;
     const base=Math.max(r*2/s.image.width,r*2/s.image.height);
-    const sw=s.image.width*base*zoom, sh=s.image.height*base*zoom;
-    c.drawImage(s.image,cx-sw/2+s.imgX*base*zoom,cy-sh/2+s.imgY*base*zoom,sw,sh);
+    const sw=s.image.width*base*zoom*sx, sh=s.image.height*base*zoom*sy;
+    c.drawImage(s.image,cx-sw/2+s.imgX*base*zoom*sx,cy-sh/2+s.imgY*base*zoom*sy,sw,sh);
   }
   const fs=s.fontSize*DPI*0.7;
   c.font='500 '+fs+'px sans-serif';
@@ -639,9 +673,10 @@ function drawButtonHiRes(c, cx, cy, r, s){
   c.fillStyle = s.bgColor; c.fillRect(cx-r, cy-r, r*2, r*2);
   if(s.image){
     const zoom = s.imgZoom/100;
+    const sx=(s.imgScaleX||100)/100, sy=(s.imgScaleY||100)/100;
     const base = Math.max(r*2/s.image.width, r*2/s.image.height);
-    const sw = s.image.width*base*zoom, sh = s.image.height*base*zoom;
-    c.drawImage(s.image, cx-sw/2+s.imgX*base*zoom, cy-sh/2+s.imgY*base*zoom, sw, sh);
+    const sw = s.image.width*base*zoom*sx, sh = s.image.height*base*zoom*sy;
+    c.drawImage(s.image, cx-sw/2+s.imgX*base*zoom*sx, cy-sh/2+s.imgY*base*zoom*sy, sw, sh);
   }
   const fs = s.fontSize * PRINT_DPI * 0.7;
   c.font = '500 '+fs+'px sans-serif';
@@ -702,9 +737,10 @@ function drawMockupPin(c, cx, cy, r, s){
   c.fillStyle=s.bgColor||'#ffffff'; c.fillRect(cx-r,cy-r,r*2,r*2);
   if(s.image){
     const zoom=s.imgZoom/100;
+    const sx=(s.imgScaleX||100)/100, sy=(s.imgScaleY||100)/100;
     const base=Math.max(r*2/s.image.width,r*2/s.image.height);
-    const sw=s.image.width*base*zoom, sh=s.image.height*base*zoom;
-    c.drawImage(s.image,cx-sw/2+s.imgX*base*zoom,cy-sh/2+s.imgY*base*zoom,sw,sh);
+    const sw=s.image.width*base*zoom*sx, sh=s.image.height*base*zoom*sy;
+    c.drawImage(s.image,cx-sw/2+s.imgX*base*zoom*sx,cy-sh/2+s.imgY*base*zoom*sy,sw,sh);
   }
   c.restore();
   /* Aro metálico */
